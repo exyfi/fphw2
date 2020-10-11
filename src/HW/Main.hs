@@ -1,4 +1,6 @@
 module HW.Main where
 
+import HW.Client (clientMain)
+
 hwMain :: IO ()
-hwMain = putStrLn "Hello, world"
+hwMain = clientMain
