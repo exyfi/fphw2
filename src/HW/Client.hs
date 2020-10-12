@@ -1,9 +1,14 @@
 module HW.Client where
 
 import HW.Game
+import HW.Server
 import Data.Bifunctor
 import Control.Concurrent
+import Control.Concurrent.Chan
 import Control.Monad
+import Control.Monad.IO.Class
+import Servant.Client
+import Network.HTTP.Client
 
 import Brick
 import Brick.BChan
@@ -12,8 +17,11 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
 
+type ActionChan = Chan GameState
+
 data AppState = AppState { game :: GameState
                          , sel :: CellPos
+                         , actionChan :: ActionChan
                          }
 
 data AppEvent = SetGameState GameState
@@ -32,20 +40,33 @@ initialState :: AppState
 initialState = AppState { game = newGame sz
                         , sel = CellPos sz 0
                         }
-    where sz = Board5x5
+    where sz = Board3x3
+
+bgThread :: BChan AppEvent -> ActionChan -> IO ()
+bgThread chan actionChan = do
+    man <- newManager defaultManagerSettings
+    let url = BaseUrl Http "127.0.0.1" 31415 ""
+    let env = mkClientEnv man url
+    forever $ do
+        s <- readChan actionChan
+        writeBChan chan $ SetGameState s
+        res <- runClientM (makeMoveC s) env
+        case res of
+          Left err -> putStrLn $ "Error: " <> show err
+          Right s' -> writeBChan chan $ SetGameState s'
 
 clientMain :: IO ()
 clientMain = do
     chan <- newBChan 16
+    actionChan <- newChan
+    forkIO $ bgThread chan actionChan
+
     let buildVty = V.mkVty V.defaultConfig
     initialVty <- buildVty
-    void $ customMain initialVty buildVty (Just chan) app initialState
+    void $ customMain initialVty buildVty (Just chan) app $ initialState { actionChan = actionChan }
 
 moveSel :: AppState -> Int -> Int -> AppState
 moveSel s x y = s { sel = movePos x y (sel s) }
-
-movePress :: AppState -> AppState
-movePress s = s { game = makeBestMove $ makeMove (sel s) (game s) }
 
 handleEvent :: AppState -> BrickEvent Name AppEvent -> EventM Name (Next AppState)
 handleEvent s (AppEvent (SetGameState gameState))   = continue $ s { game = gameState }
@@ -53,7 +74,9 @@ handleEvent s (VtyEvent (V.EvKey V.KLeft []))       = continue $ moveSel s 0 (-1
 handleEvent s (VtyEvent (V.EvKey V.KRight []))      = continue $ moveSel s 0 1
 handleEvent s (VtyEvent (V.EvKey V.KUp []))         = continue $ moveSel s (-1) 0
 handleEvent s (VtyEvent (V.EvKey V.KDown []))       = continue $ moveSel s 1 0
-handleEvent s (VtyEvent (V.EvKey V.KEnter []))      = continue $ movePress s
+handleEvent s (VtyEvent (V.EvKey V.KEnter []))      = do
+    liftIO $ writeChan (actionChan s) (makeMove (sel s) (game s))
+    continue s
 handleEvent s (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt s
 handleEvent s (VtyEvent (V.EvKey V.KEsc []))        = halt s
 handleEvent s _                                     = continue s

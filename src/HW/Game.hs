@@ -1,6 +1,8 @@
 module HW.Game where
 
+import GHC.Generics
 import Control.Applicative
+import Data.Aeson
 import Data.Bifunctor
 import Data.List
 import Data.Maybe
@@ -9,7 +11,7 @@ import qualified Data.Vector as V
 import Data.Vector ((!), (//))
 
 data Player = X | O
-    deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum, Generic)
 
 type Cell = Maybe Player
 
@@ -18,9 +20,10 @@ type Evaluator = GameState -> Maybe Player
 data BoardSize = Board3x3
                | Board4x4
                | Board5x5
-               deriving (Eq, Show, Enum)
+               deriving (Eq, Show, Enum, Generic)
 
 data Board = Board BoardSize (V.Vector Cell)
+    deriving (Eq, Show, Generic)
 
 data CellPos = CellPos BoardSize Int
     deriving (Eq, Show)
@@ -28,6 +31,19 @@ data CellPos = CellPos BoardSize Int
 data GameState = GameState { board     :: Board
                            , curPlayer :: Player
                            }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON Player
+instance FromJSON Player
+
+instance ToJSON BoardSize
+instance FromJSON BoardSize
+
+instance ToJSON Board
+instance FromJSON Board
+
+instance ToJSON GameState
+instance FromJSON GameState
 
 boardSizeToInt :: BoardSize -> Int
 boardSizeToInt Board3x3 = 3
