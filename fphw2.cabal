@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2982f3a792001943761238e775e1062ef44f7a0f4c4fe7dd8fd20aebc9905950
+-- hash: eb21a715d300e70865390ae208ee52b174c5bfd8914673cb280643229411f961
 
 name:           fphw2
 version:        0.1.0.0
@@ -31,6 +31,7 @@ library
   build-depends:
       base >=4.7 && <5
     , brick
+    , vector
     , vty
   default-language: Haskell2010
 
@@ -46,6 +47,7 @@ executable fphw2-exe
       base >=4.7 && <5
     , brick
     , fphw2
+    , vector
     , vty
   default-language: Haskell2010
 
@@ -62,5 +64,6 @@ test-suite fphw2-test
       base >=4.7 && <5
     , brick
     , fphw2
+    , vector
     , vty
   default-language: Haskell2010

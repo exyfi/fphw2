@@ -1,72 +1,109 @@
 module HW.Game where
 
 import Control.Applicative
+import Data.Bifunctor
 import Data.List
 import Data.Maybe
 import Data.Foldable
+import qualified Data.Vector as V
+import Data.Vector ((!), (//))
 
 data Player = X | O
     deriving (Eq, Show, Enum)
 
 type Cell = Maybe Player
 
-newtype Board = Board [Cell]
+type Evaluator = GameState -> Maybe Player
+
+data BoardSize = Board3x3
+               | Board4x4
+               | Board5x5
+               deriving (Eq, Show, Enum)
+
+data Board = Board BoardSize (V.Vector Cell)
+
+data CellPos = CellPos BoardSize Int
+    deriving (Eq, Show)
 
 data GameState = GameState { board     :: Board
                            , curPlayer :: Player
                            }
 
-newGame :: GameState
-newGame = GameState { board = Board (replicate 9 Nothing)
-                    , curPlayer = X
-                    }
+boardSizeToInt :: BoardSize -> Int
+boardSizeToInt Board3x3 = 3
+boardSizeToInt Board4x4 = 4
+boardSizeToInt Board5x5 = 5
+
+boardSize :: Board -> Int
+boardSize (Board sz _) = boardSizeToInt sz
+
+newGame :: BoardSize -> GameState
+newGame sz =
+    GameState { board = Board sz (V.replicate (size^2) Nothing)
+              , curPlayer = X
+              }
+    where size = boardSizeToInt sz
 
 otherPlayer :: Player -> Player
 otherPlayer X = O
 otherPlayer O = X
 
 winner :: Board -> Maybe Player
-winner (Board board) = asum $ map (match . map (board !!)) coords
+winner (Board sz board) = asum $ map (match . fmap (board !)) coords
     where match [(Just a), (Just b), (Just c)]
             | a == b && b == c = Just a
             | otherwise        = Nothing
           match _ = Nothing
-          coords = [ [0, 1, 2] -- first row
-                   , [3, 4, 5] -- second row
-                   , [6, 7, 8] -- third row
-                   , [0, 3, 6] -- first column
-                   , [1, 4, 7] -- second column
-                   , [2, 5, 8] -- third column
-                   , [0, 4, 8] -- main diagonal
-                   , [2, 4, 6] -- side diagonal
-                   ]
+          size = boardSizeToInt sz
+          coords = [[size*i..size*i+size-1] | i <- [0..size-1]] <>         -- rows
+                   [[i, size+i..size^2-1] | i <- [0..size-1]] <>           -- cols
+                   [[0, size+1..size^2-1], [size-1, 2*(size-1)..size^2-1]] -- diagonals
 
 gameOver :: Board -> Bool
 gameOver board = isJust (winner board) || null (possibleMoves board)
 
-possibleMoves :: Board -> [Int]
-possibleMoves (Board board) = [i | (Nothing, i) <- zip board [0..8]]
+possibleMoves :: Board -> [CellPos]
+possibleMoves (Board sz board) = [CellPos sz i | (i, Nothing) <- V.toList $ V.indexed board]
+    where size = boardSizeToInt sz
 
-setCell :: Int -> Cell -> Board -> Board 
-setCell pos cell (Board board) = Board [replace x i | (x, i) <- zip board [0..8]]
-    where replace x i
-            | i == pos  = cell
-            | otherwise = x
+setCell :: CellPos -> Cell -> Board -> Board 
+setCell (CellPos _ pos) cell (Board sz board) = Board sz $ board // [(pos, cell)]
+    where size = boardSizeToInt sz
 
-getCellXY :: Int -> Int -> Board -> Cell
-getCellXY x y (Board board) = board !! (3 * x + y)
+getCell :: CellPos -> Board -> Cell
+getCell (CellPos _ pos) (Board _ board) = board ! pos
 
-makeMove :: Int -> GameState -> GameState
+getCellPos :: Int -> Int -> Board -> CellPos
+getCellPos x y (Board sz _) = CellPos sz $ y * size + x
+    where size = boardSizeToInt sz
+
+makeMove :: CellPos -> GameState -> GameState
 makeMove pos (GameState board curPlayer) = GameState (setCell pos (Just curPlayer) board) (otherPlayer curPlayer)
 
-evaluatePosition :: GameState -> Maybe Player
-evaluatePosition state@(GameState board curPlayer)
-  | gameOver board = winner board
-  | otherwise      = evaluatePosition $ makeMove (bestMove state) state
+makeBestMove :: GameState -> GameState
+makeBestMove s
+  | gameOver $ board s = s
+  | otherwise = makeMove (fst $ bestMove (evalDeep 3) s) s
 
-bestMove :: GameState -> Int
-bestMove state@(GameState board curPlayer) = head $ winningMoves <> drawingMoves <> losingMoves
-    where moves p = filter (\move -> evaluatePosition (makeMove move state) == p) (possibleMoves board)
-          winningMoves = moves $ Just curPlayer
-          drawingMoves = moves Nothing
-          losingMoves  = moves $ Just $ otherPlayer curPlayer
+evalDeep :: Int -> Evaluator
+evalDeep 0 (GameState board _) = winner board
+evalDeep n s@(GameState board _)
+  | gameOver board = winner board
+  | otherwise = snd $ bestMove (evalDeep (n - 1)) s
+
+bestMove :: Evaluator -> GameState -> (CellPos, Maybe Player)
+bestMove eval state@(GameState board curPlayer) = head $ winningMoves <> drawingMoves <> losingMoves
+    where moves = map (\move -> (move, eval (makeMove move state))) (possibleMoves board)
+          m p = seq moves (filter (\(m, p') -> p == p') moves)
+          winningMoves = m $ Just curPlayer
+          drawingMoves = m Nothing
+          losingMoves  = m $ Just $ otherPlayer curPlayer
+
+movePos :: Int -> Int -> CellPos -> CellPos
+movePos dx dy (CellPos sz pos)
+  | (x >= 0) && (x < size) && (y >= 0) && (y < size) = CellPos sz npos
+  | otherwise = CellPos sz pos
+    where size = boardSizeToInt sz
+          x = pos `mod` size + dx
+          y = pos `div` size + dy
+          npos = y * size + x
