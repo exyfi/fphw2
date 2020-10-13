@@ -20,7 +20,7 @@ type Evaluator = GameState -> Maybe Player
 data BoardSize = Board3x3
                | Board4x4
                | Board5x5
-               deriving (Eq, Show, Enum, Generic)
+               deriving (Eq, Ord, Show, Enum, Generic, Bounded)
 
 data Board = Board BoardSize (V.Vector Cell)
     deriving (Eq, Show, Generic)
@@ -66,14 +66,14 @@ otherPlayer O = X
 
 winner :: Board -> Maybe Player
 winner (Board sz board) = asum $ map (match . fmap (board !)) coords
-    where match [(Just a), (Just b), (Just c)]
-            | a == b && b == c = Just a
-            | otherwise        = Nothing
+    where match xs@(Just x:_)
+            | all (== Just x) xs = Just x
+            | otherwise          = Nothing
           match _ = Nothing
           size = boardSizeToInt sz
-          coords = [[size*i..size*i+size-1] | i <- [0..size-1]] <>         -- rows
-                   [[i, size+i..size^2-1] | i <- [0..size-1]] <>           -- cols
-                   [[0, size+1..size^2-1], [size-1, 2*(size-1)..size^2-1]] -- diagonals
+          coords = [[size*i..size*i+size-1] | i <- [0..size-1]] <>              -- rows
+                   [[i, size+i..size^2-1] | i <- [0..size-1]] <>                -- cols
+                   [[0, size+1..size^2-1], [size-1, 2*(size-1)..size*(size-1)]] -- diagonals
 
 gameOver :: Board -> Bool
 gameOver board = isJust (winner board) || null (possibleMoves board)
@@ -99,7 +99,7 @@ makeMove pos (GameState board curPlayer) = GameState (setCell pos (Just curPlaye
 makeBestMove :: GameState -> GameState
 makeBestMove s
   | gameOver $ board s = s
-  | otherwise = makeMove (fst $ bestMove (evalDeep 3) s) s
+  | otherwise = makeMove (fst $ bestMove (evalDeep 2) s) s
 
 evalDeep :: Int -> Evaluator
 evalDeep 0 (GameState board _) = winner board
@@ -109,8 +109,8 @@ evalDeep n s@(GameState board _)
 
 bestMove :: Evaluator -> GameState -> (CellPos, Maybe Player)
 bestMove eval state@(GameState board curPlayer) = head $ winningMoves <> drawingMoves <> losingMoves
-    where moves = map (\move -> (move, eval (makeMove move state))) (possibleMoves board)
-          m p = seq moves (filter (\(m, p') -> p == p') moves)
+    where moves = map (\move -> (move, eval $ makeMove move state)) (possibleMoves board)
+          m p = filter (\(m, p') -> p == p') moves
           winningMoves = m $ Just curPlayer
           drawingMoves = m Nothing
           losingMoves  = m $ Just $ otherPlayer curPlayer

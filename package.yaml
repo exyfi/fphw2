@@ -20,6 +20,8 @@ dependencies:
 - http-client
 - warp
 - aeson
+- lens
+- random
 
 default-extensions:
 - ApplicativeDo
@@ -51,6 +53,7 @@ default-extensions:
 - RankNTypes
 - ScopedTypeVariables
 - StandaloneDeriving
+- TemplateHaskell
 - TupleSections
 - TypeApplications
 - TypeFamilies

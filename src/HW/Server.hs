@@ -7,6 +7,8 @@ import Servant.API
 import Servant.Server
 import Servant.Client
 import Network.Wai.Handler.Warp
+import System.Random
+import Control.Monad.IO.Class
 
 type GameAPI = "move" :> ReqBody '[JSON] GameState :> Post '[JSON] GameState
           :<|> "game" :> ReqBody '[JSON] BoardSize :> Post '[JSON] GameState
