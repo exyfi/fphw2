@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 05e3c6fbf8634616be687036e0922db1674753954517844206832bc92570eb06
+-- hash: b0013f35803daa03f9f5d89e7d24300729179631d875164f4553750f42908f60
 
 name:           fphw2
 version:        0.1.0.0
@@ -82,6 +82,7 @@ test-suite fphw2-test
     , base >=4.7 && <5
     , brick
     , fphw2
+    , hspec
     , http-client
     , lens
     , random

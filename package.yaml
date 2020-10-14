@@ -84,3 +84,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fphw2
+    - hspec
