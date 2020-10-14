@@ -1,4 +1,4 @@
-# Tic Tac Toe 
+# Tic Tac Toe client-server game
 
 ## Features
    * Game boards 3x3 4x4 5x5
