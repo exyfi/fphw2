@@ -14,7 +14,9 @@ type GameAPI = "move" :> ReqBody '[JSON] GameState :> Post '[JSON] GameState
           :<|> "game" :> ReqBody '[JSON] BoardSize :> Post '[JSON] GameState
 
 serverMain :: Int -> IO ()
-serverMain port = run port $ serve (Proxy @GameAPI) (makeMoveHandler :<|> newGameHandler)
+serverMain port = do
+                  putStrLn $ "Starting server on port: " <> show port
+                  run port $ serve (Proxy @GameAPI) (makeMoveHandler :<|> newGameHandler)
 
 makeMoveHandler :: GameState -> Handler GameState
 makeMoveHandler = return . makeBestMove
