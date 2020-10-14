@@ -13,13 +13,16 @@ import Control.Monad.IO.Class
 type GameAPI = "move" :> ReqBody '[JSON] GameState :> Post '[JSON] GameState
           :<|> "game" :> ReqBody '[JSON] BoardSize :> Post '[JSON] GameState
 
-serverMain :: IO ()
-serverMain = run 31415 $ serve (Proxy @GameAPI) (makeMoveHandler :<|> newGameHandler)
+serverMain :: Int -> IO ()
+serverMain port = run port $ serve (Proxy @GameAPI) (makeMoveHandler :<|> newGameHandler)
 
 makeMoveHandler :: GameState -> Handler GameState
 makeMoveHandler = return . makeBestMove
 
 newGameHandler :: BoardSize -> Handler GameState
-newGameHandler = return . newGame
+newGameHandler sz = do
+    let b = newGame sz
+    x <- liftIO randomIO
+    return $ if x then b else makeBestMove b
 
 makeMoveC :<|> newGameC = client (Proxy @GameAPI)

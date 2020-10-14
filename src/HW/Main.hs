@@ -9,11 +9,12 @@ import System.Exit
 usage :: IO ()
 usage = do
     name <- getProgName
-    putStrLn $ "Usage: " <> name <> " <client|server>"
+    putStrLn $ "Usage: " <> name <> " server <port>"
+    putStrLn $ "       " <> name <> " client <host> <port>"
 
 args :: [String] -> IO ()
-args ["client"] = clientMain
-args ["server"] = serverMain
+args ["client", host, port] = clientMain host (read port)
+args ["server", port] = serverMain (read port)
 args _ = usage
 
 hwMain :: IO ()

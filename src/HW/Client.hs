@@ -61,10 +61,10 @@ app = App { appDraw = drawUI
           , appAttrMap = const theMap
           }
 
-bgThread :: BChan AppEvent -> ActionChan -> IO ()
-bgThread chan actionChan = do
+bgThread :: String -> Int -> BChan AppEvent -> ActionChan -> IO ()
+bgThread host port chan actionChan = do
     man <- newManager defaultManagerSettings
-    let url = BaseUrl Http "127.0.0.1" 31415 ""
+    let url = BaseUrl Http host port ""
     let env = mkClientEnv man url
 
     forever $ do
@@ -79,11 +79,11 @@ bgThread chan actionChan = do
           Left err -> writeBChan chan $ Die $ show err
           Right s' -> writeBChan chan $ con s'
 
-clientMain :: IO ()
-clientMain = do
+clientMain :: String -> Int -> IO ()
+clientMain host port = do
     chan <- newBChan 16
     actionChan <- newChan
-    forkIO $ bgThread chan actionChan
+    forkIO $ bgThread host port chan actionChan
 
     let initialState = AppState (Setup $ SetupScene Board3x3) actionChan
 
@@ -117,10 +117,11 @@ handleEvent s (VtyEvent (V.EvKey V.KEnter []))      = do
       Just g -> do
           if gameOver $ board $ g ^. game
           then continue $ s & scene .~ (Setup $ SetupScene Board3x3)
-          else do
+          else if (g ^. me) == curPlayer (g ^. game) then do
               let s' = makeMove (g ^. sel) (g ^. game)
               liftIO $ writeChan (s ^. actionChan) $ MakeMove s'
               continue $ s & scene._Game.game .~ s'
+          else continue s
       Nothing -> do
           liftIO $ writeChan (s ^. actionChan) $ NewGame (sc ^?! _Setup.selSize)
           continue s
