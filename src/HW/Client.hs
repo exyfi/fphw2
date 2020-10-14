@@ -20,11 +20,14 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
 
+-- Action that the UI thread can send to the network thread
 data Action = MakeMove GameState
             | NewGame BoardSize
 
+-- Channel for such actions
 type ActionChan = Chan Action
 
+-- Information needed to render the screen with the game
 data GameScene = GameScene { _game :: GameState
                            , _sel :: CellPos
                            , _me :: Player
@@ -32,6 +35,7 @@ data GameScene = GameScene { _game :: GameState
 
 makeLenses ''GameScene
 
+-- Information needed to render the game set up screen
 data SetupScene = SetupScene { _selSize :: BoardSize }
 
 makeLenses ''SetupScene
@@ -41,12 +45,14 @@ data Scene = Game GameScene
 
 makePrisms ''Scene
 
+-- State of the UI
 data AppState = AppState { _scene :: Scene
                          , _actionChan :: ActionChan
                          }
 
 makeLenses ''AppState
 
+-- Event that the network thread can send to the UI one
 data AppEvent = SetGameState GameState
               | StartNewGame GameState
               | Die String
@@ -61,6 +67,7 @@ app = App { appDraw = drawUI
           , appAttrMap = const theMap
           }
 
+-- network thread, handles communication with the server
 bgThread :: String -> Int -> BChan AppEvent -> ActionChan -> IO ()
 bgThread host port chan actionChan = do
     man <- newManager defaultManagerSettings
@@ -79,6 +86,7 @@ bgThread host port chan actionChan = do
           Left err -> writeBChan chan $ Die $ show err
           Right s' -> writeBChan chan $ con s'
 
+-- client entry point
 clientMain :: String -> Int -> IO ()
 clientMain host port = do
     chan <- newBChan 16
@@ -91,18 +99,22 @@ clientMain host port = do
     initialVty <- buildVty
     void $ customMain initialVty buildVty (Just chan) app initialState
 
+-- helper function for moving cursor in the setup screen
 selectBoardSize :: Int -> BoardSize -> BoardSize
 selectBoardSize 1    sz = if sz == maxBound then sz else succ sz
 selectBoardSize (-1) sz = if sz == minBound then sz else pred sz
 selectBoardSize 0    sz = sz
 
+-- arrow button handler
 moveSel :: AppState -> Int -> Int -> AppState
 moveSel s x y = s & scene._Game.sel %~ (movePos x y)
                   & scene._Setup.selSize %~ (selectBoardSize x)
 
+-- create a fresh game scene from game state
 gameScene :: GameState -> GameScene
 gameScene s = GameScene s (getCellPos 0 0 (board s)) (curPlayer s)
 
+-- handle UI event
 handleEvent :: AppState -> BrickEvent Name AppEvent -> EventM Name (Next AppState)
 handleEvent s (AppEvent (Die _))                    = halt s
 handleEvent s (AppEvent (SetGameState gameState))   = continue $ s & scene._Game.game .~ gameState
